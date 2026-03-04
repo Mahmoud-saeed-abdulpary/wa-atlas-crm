@@ -1,26 +1,44 @@
 <?php
+/**
+ * WA Atlas CRM – Database  v1.2.0
+ * =================================
+ * FIX #2 – Added table_count() helper.
+ * FIX #2 – install() always calls dbDelta() so it is safe to call on every
+ *           plugin activation and every version upgrade (idempotent).
+ * The wacrm_db_version option is updated after install() so WACRM_Admin::maybe_upgrade()
+ * only runs dbDelta when the version actually changes.
+ */
+
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 class WACRM_DB {
 
     // ── Table names ───────────────────────────────────────────────────────────
-    public static function contacts()         { global $wpdb; return $wpdb->prefix . 'wacrm_contacts'; }
-    public static function contact_fields()   { global $wpdb; return $wpdb->prefix . 'wacrm_contact_fields'; }
-    public static function contact_meta()     { global $wpdb; return $wpdb->prefix . 'wacrm_contact_meta'; }
-    public static function lists()            { global $wpdb; return $wpdb->prefix . 'wacrm_lists'; }
-    public static function list_contacts()    { global $wpdb; return $wpdb->prefix . 'wacrm_list_contacts'; }
-    public static function campaigns()        { global $wpdb; return $wpdb->prefix . 'wacrm_campaigns'; }
-    public static function campaign_steps()   { global $wpdb; return $wpdb->prefix . 'wacrm_campaign_steps'; }
-    public static function automations()      { global $wpdb; return $wpdb->prefix . 'wacrm_automations'; }
-    public static function templates()        { global $wpdb; return $wpdb->prefix . 'wacrm_templates'; }
-    public static function message_logs()     { global $wpdb; return $wpdb->prefix . 'wacrm_message_logs'; }
-    public static function otp_logs()         { global $wpdb; return $wpdb->prefix . 'wacrm_otp_logs'; }
-    public static function instances()        { global $wpdb; return $wpdb->prefix . 'wacrm_instances'; }
-    public static function quota()            { global $wpdb; return $wpdb->prefix . 'wacrm_quota'; }
-    public static function queue()            { global $wpdb; return $wpdb->prefix . 'wacrm_queue'; }
+    public static function contacts()       { global $wpdb; return $wpdb->prefix . 'wacrm_contacts'; }
+    public static function contact_fields() { global $wpdb; return $wpdb->prefix . 'wacrm_contact_fields'; }
+    public static function contact_meta()   { global $wpdb; return $wpdb->prefix . 'wacrm_contact_meta'; }
+    public static function lists()          { global $wpdb; return $wpdb->prefix . 'wacrm_lists'; }
+    public static function list_contacts()  { global $wpdb; return $wpdb->prefix . 'wacrm_list_contacts'; }
+    public static function campaigns()      { global $wpdb; return $wpdb->prefix . 'wacrm_campaigns'; }
+    public static function campaign_steps() { global $wpdb; return $wpdb->prefix . 'wacrm_campaign_steps'; }
+    public static function automations()    { global $wpdb; return $wpdb->prefix . 'wacrm_automations'; }
+    public static function templates()      { global $wpdb; return $wpdb->prefix . 'wacrm_templates'; }
+    public static function message_logs()   { global $wpdb; return $wpdb->prefix . 'wacrm_message_logs'; }
+    public static function otp_logs()       { global $wpdb; return $wpdb->prefix . 'wacrm_otp_logs'; }
+    public static function instances()      { global $wpdb; return $wpdb->prefix . 'wacrm_instances'; }
+    public static function quota()          { global $wpdb; return $wpdb->prefix . 'wacrm_quota'; }
+    public static function queue()          { global $wpdb; return $wpdb->prefix . 'wacrm_queue'; }
 
-    // ── Install all tables ────────────────────────────────────────────────────
-    public static function install() {
+    /** Returns the number of plugin tables (for the reinstall confirmation message) */
+    public static function table_count(): int { return 14; }
+
+    // ── Install / upgrade all tables ──────────────────────────────────────────
+
+    /**
+     * Safe to call multiple times – dbDelta only creates or alters, never drops.
+     * Called on activation hook AND on every version change via maybe_upgrade().
+     */
+    public static function install(): void {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -44,7 +62,7 @@ class WACRM_DB {
             KEY whatsapp (whatsapp)
         ) $charset;";
 
-        // custom fields definition
+        // custom field definitions
         $tables[] = "CREATE TABLE " . self::contact_fields() . " (
             id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             field_key    VARCHAR(80)     NOT NULL DEFAULT '',
@@ -113,7 +131,7 @@ class WACRM_DB {
             template_id   BIGINT UNSIGNED,
             message_body  TEXT,
             media_url     VARCHAR(500),
-            delay_seconds INT             NOT NULL DEFAULT 0,
+            delay_seconds INT             NOT NULL DEFAULT 5,
             PRIMARY KEY (id),
             KEY campaign_id (campaign_id)
         ) $charset;";
@@ -173,7 +191,7 @@ class WACRM_DB {
             KEY phone (phone)
         ) $charset;";
 
-        // evolution instances cache
+        // Evolution instances cache
         $tables[] = "CREATE TABLE " . self::instances() . " (
             id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             instance_name VARCHAR(80)     NOT NULL,
@@ -217,6 +235,7 @@ class WACRM_DB {
             dbDelta( $sql );
         }
 
+        // Update stored version so maybe_upgrade() doesn't re-run unnecessarily
         update_option( 'wacrm_db_version', WACRM_VERSION );
     }
 }
